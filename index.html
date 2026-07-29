@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="vi">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Agribank</title>
+
+        <style>
+            :root {
+                --primary: #e53935;
+                --primary-light: #ff6f60;
+                --bg-dark: #fef2f2;
+                --text-dark: #333;
+            }
+            body {
+                margin: 0;
+                font-family: "Inter", Arial, sans-serif;
+                height: 100vh;
+                display: flex;
+                overflow: hidden;
+                background: var(--bg-dark);
+            }
+
+            /* SIDEBAR */
+            .sidebar {
+                width: 260px;
+                background: white;
+                box-shadow: 0 4px 30px rgba(0,0,0,0.1);
+                border-radius: 0 20px 20px 0;
+                overflow-y: auto;
+                padding-top: 20px;
+            }
+
+            .sidebar-item {
+                padding: 18px 20px;
+                margin: 10px;
+                border-radius: 12px;
+                background: #fff5f5;
+                color: var(--primary);
+                font-weight: 600;
+                cursor: pointer;
+                transition: 0.25s;
+            }
+            .sidebar-item:hover {
+                background: var(--primary);
+                color: white;
+                transform: translateX(3px);
+            }
+
+            /* VIEWER */
+            .viewer {
+                flex: 1;
+                position: relative;
+                overflow: hidden;
+                background: linear-gradient(135deg, #ffebee, #ffcdd2);
+                color: var(--text-dark);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                transition: 0.2s;
+            }
+
+            /* IMAGE */
+            .slide-img {
+                width: 100%;
+                height: 100%;
+                object-fit: contain; /* fit inside viewer without cropping */
+                background: var(--bg-dark); /* fill empty space */
+                border-radius: 0;
+                box-shadow: none;
+                transition: transform 0.25s ease;
+            }
+
+            /* NOTE: legacy .text-box and .mix-container styles removed — slides now use
+               full-bleed classes `.slide-text` and `.mix-full` */
+
+            /* Full-bleed slide for text and mix */
+            .slide-text, .mix-full {
+                width: 100%;
+                height: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 36px;
+                box-sizing: border-box;
+            }
+            .slide-text .content {
+                color: var(--text-dark);
+                font-size: clamp(18px, 2.4vw, 34px);
+                line-height: 1.6;
+                text-align: center;
+                max-width: 1100px;
+            }
+            .mix-full {
+                background-size: contain; /* show full image without cropping */
+                background-position: center;
+                background-repeat: no-repeat;
+                background-color: var(--bg-dark);
+            }
+            .mix-full .content {
+                background: rgba(255,255,255,0.88);
+                padding: 26px;
+                border-radius: 12px;
+                color: var(--text-dark);
+                max-width: 1000px;
+            }
+
+            /* Title effect */
+            .empty-message {
+                font-size: 26px;
+                font-weight: 700;
+                color: var(--primary);
+                opacity: 0.6;
+            }
+            /* FULLSCREEN SLIDER */
+            .fullscreen-slider {
+                position: fixed;
+                inset: 0;
+                background: rgba(0,0,0,0.88);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 9999;
+                visibility: hidden;
+                opacity: 0;
+                transition: opacity 220ms ease, visibility 220ms;
+            }
+            .fullscreen-slider.show {
+                visibility: visible;
+                opacity: 1;
+            }
+            .fullscreen-content {
+                width: 92vw;
+                height: 92vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                position: relative;
+            }
+            .fs-img {
+                width: 100%;
+                height: 100%;
+                object-fit: contain; /* show whole image in fullscreen without crop */
+                border-radius: 8px;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+                background: #000;
+            }
+            .fs-close, .fs-prev, .fs-next {
+                position: absolute;
+                top: 16px;
+                background: rgba(255,255,255,0.08);
+                color: white;
+                border: none;
+                padding: 10px 12px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: 700;
+            }
+            .fs-close { right: 16px; top: 16px; }
+            .fs-prev { left: 16px; top: 50%; transform: translateY(-50%); }
+            .fs-next { right: 16px; top: 50%; transform: translateY(-50%); }
+            .fs-caption { position: absolute; bottom: 24px; left: 24px; color: #fff; font-size: 18px; }
+
+            /* inline image controls */
+            .img-nav {
+                position: absolute;
+                top: 50%;
+                transform: translateY(-50%);
+                background: rgba(0,0,0,0.35);
+                color: #fff;
+                border: none;
+                padding: 10px 12px;
+                border-radius: 8px;
+                cursor: pointer;
+                z-index: 5;
+            }
+            .img-prev-btn { left: 12px; }
+            .img-next-btn { right: 12px; }
+            .img-dots {
+                position: absolute;
+                left: 50%;
+                transform: translateX(-50%);
+                bottom: 12px;
+                display: flex;
+                gap: 8px;
+                z-index: 6;
+            }
+            .img-dots .dot {
+                width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.5); cursor: pointer;
+            }
+            .img-dots .dot.active { background: rgba(255,255,255,0.95); }
+
+            /* removed full-div CSS — viewer fills available area by default */
+            /* FLOATING FULLSCREEN BUTTON */
+            .float-fs-btn {
+                position: fixed;
+                right: 18px;
+                bottom: 18px;
+                width: 52px;
+                height: 52px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, var(--primary), var(--primary-light));
+                color: white;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.22);
+                border: none;
+                cursor: pointer;
+                z-index: 10010;
+                font-size: 20px;
+            }
+            .float-fs-btn:active { transform: scale(0.98); }
+        </style>
+    </head>
+
+    <body>
+
+        <!-- SIDEBAR -->
+        <div class="sidebar" id="menu"></div>
+
+        <!-- VIEWER -->
+        <div class="viewer" id="viewer">
+            <div class="empty-message">Chọn mục nội dung để xem slideshow…</div>
+        </div>
+
+        <!-- FULLSCREEN SLIDER OVERLAY -->
+        <div id="fullscreen" class="fullscreen-slider" aria-hidden="true">
+            <div class="fullscreen-content" id="fs-content">
+                <button class="fs-prev" id="fs-prev">◀</button>
+                <img id="fs-img" class="fs-img" src="" alt="">
+                <button class="fs-next" id="fs-next">▶</button>
+                <button class="fs-close" id="fs-close">✕</button>
+                <div class="fs-caption" id="fs-caption"></div>
+            </div>
+        </div>
+
+        <!-- FLOATING FULLSCREEN BUTTON -->
+        <button id="float-fs-btn" class="float-fs-btn" aria-pressed="false" title="Toàn màn hình">⤢</button>
+
+        <script>
+        // ======= DATA =======
+        const slides = [
+            {
+                type: "image",
+                title: "Slideshow",
+                images: [
+                    "/data/1.jpg",
+                    "/data/2.jpg",
+                    "/data/3.jpg"
+                ]
+            },
+            {
+                type: "text",
+                title: "Text",
+                text: `
+                    <h2 style="color:#e53935">Giới thiệu ngân hàng</h2>
+                    <p>Đây là nội dung văn bản hiển thị trên các màn hình quảng cáo.</p>
+                    <p>Bạn có thể trình bày thông báo, giới thiệu dịch vụ hoặc ưu đãi.</p>
+                `
+            },
+            {
+                type: "mix",
+                title: "Mix",
+                text: `
+                    <h2 style="color:#e53935">Chương trình ưu đãi</h2>
+                    <p>Ưu đãi dành riêng cho khách hàng mới.</p>`,
+                image: "/data/1.jpg"
+            }
+        ];
+
+        // ====== MENU ======
+        const menu = document.getElementById("menu");
+        slides.forEach((item, index) => {
+            let div = document.createElement("div");
+            div.className = "sidebar-item";
+            div.textContent = item.title;
+            div.onclick = () => renderSlide(index);
+
+            menu.appendChild(div);
+        });
+
+        // ====== VIEW RENDER ======
+        const viewer = document.getElementById("viewer");
+
+        // removed global `currentIndex` and `zoom` (per-slide variables used instead)
+        let inlineAutoId = null; // autoplay for inline viewer
+
+        function renderSlide(i) {
+            // clear any previous inline autoplay
+            if (inlineAutoId) { clearInterval(inlineAutoId); inlineAutoId = null; }
+            viewer.innerHTML = "";
+            const data = slides[i];
+
+            if (data.type === "image") renderImageSlideshow(data);
+            if (data.type === "text") renderText(data);
+            if (data.type === "mix") renderMix(data);
+        }
+
+        // ===== IMAGE SLIDESHOW =====
+        function renderImageSlideshow(data) {
+            // Build inline slideshow UI
+            const wrap = document.createElement('div');
+            wrap.style.position = 'relative';
+            wrap.style.width = '100%';
+            wrap.style.height = '100%';
+            wrap.style.overflow = 'hidden';
+
+            const img = document.createElement('img');
+            img.className = 'slide-img';
+            img.draggable = false;
+            img.src = data.images[0];
+            // ensure image sits above background cover
+            img.style.position = 'relative';
+            img.style.zIndex = 2;
+            wrap.appendChild(img);
+
+            // use the image as a cover background to hide letterbox gaps
+            wrap.style.backgroundImage = `url(${data.images[0]})`;
+            wrap.style.backgroundSize = 'cover';
+            wrap.style.backgroundPosition = 'center';
+            wrap.style.backgroundRepeat = 'no-repeat';
+
+            // soft dark overlay to improve contrast
+            const overlay = document.createElement('div');
+            overlay.style.position = 'absolute';
+            overlay.style.inset = '0';
+            overlay.style.background = 'rgba(0,0,0,0.18)';
+            overlay.style.zIndex = 1;
+            overlay.style.pointerEvents = 'none';
+            wrap.appendChild(overlay);
+
+            // nav buttons
+            const prevBtn = document.createElement('button');
+            prevBtn.className = 'img-nav img-prev-btn';
+            prevBtn.textContent = '◀';
+            const nextBtn = document.createElement('button');
+            nextBtn.className = 'img-nav img-next-btn';
+            nextBtn.textContent = '▶';
+            wrap.appendChild(prevBtn);
+            wrap.appendChild(nextBtn);
+
+            // dots
+            const dots = document.createElement('div');
+            dots.className = 'img-dots';
+            const dotEls = [];
+            data.images.forEach((s, i) => {
+                const d = document.createElement('div');
+                d.className = 'dot' + (i === 0 ? ' active' : '');
+                d.onclick = () => goTo(i);
+                dots.appendChild(d);
+                dotEls.push(d);
+            });
+            wrap.appendChild(dots);
+
+            viewer.appendChild(wrap);
+
+            let idx = 0;
+            let zoomLocal = 1;
+            let startX = 0;
+            let curX = 0;
+            let isDragging = false;
+
+            function updateDots() {
+                dotEls.forEach((el, i) => el.classList.toggle('active', i === idx));
+            }
+
+            function setImage(i) {
+                idx = (i + data.images.length) % data.images.length;
+                img.src = data.images[idx];
+                // update cover background too
+                wrap.style.backgroundImage = `url(${data.images[idx]})`;
+                img.style.transition = 'transform 220ms ease';
+                img.style.transform = 'scale(1) translateX(0px)';
+                img.style.transformOrigin = '50% 50%';
+                zoomLocal = 1;
+                updateDots();
+            }
+
+            function next() { setImage(idx + 1); }
+            function prev() { setImage(idx - 1); }
+
+            function goTo(i) { setImage(i); restartAutoplay(); }
+
+            // pointer / touch handlers for drag
+            function pointerDown(x) {
+                if (zoomLocal !== 1) return; // don't slide when zoomed
+                isDragging = true; startX = x; curX = 0;
+                img.style.transition = 'none';
+                stopAutoplay();
+            }
+            function pointerMove(x) {
+                if (!isDragging) return;
+                curX = x - startX;
+                img.style.transform = `translateX(${curX}px) scale(${zoomLocal})`;
+            }
+            function pointerUp() {
+                if (!isDragging) return; isDragging = false;
+                const threshold = 60;
+                if (curX < -threshold) { next(); }
+                else if (curX > threshold) { prev(); }
+                else {
+                    // animate back
+                    img.style.transition = 'transform 220ms ease';
+                    img.style.transform = `translateX(0px) scale(${zoomLocal})`;
+                }
+                restartAutoplay();
+            }
+
+            // mouse
+            wrap.addEventListener('mousedown', e => { e.preventDefault(); pointerDown(e.clientX); });
+            window.addEventListener('mousemove', e => pointerMove(e.clientX));
+            window.addEventListener('mouseup', () => pointerUp());
+            // touch
+            wrap.addEventListener('touchstart', e => pointerDown(e.touches[0].clientX));
+            wrap.addEventListener('touchmove', e => pointerMove(e.touches[0].clientX));
+            wrap.addEventListener('touchend', () => pointerUp());
+
+            // wheel zoom around pointer
+            wrap.addEventListener('wheel', e => {
+                e.preventDefault();
+                const rect = img.getBoundingClientRect();
+                const offsetX = e.clientX - rect.left;
+                const offsetY = e.clientY - rect.top;
+                const originX = (offsetX / rect.width) * 100;
+                const originY = (offsetY / rect.height) * 100;
+                img.style.transformOrigin = `${originX}% ${originY}%`;
+                zoomLocal += e.deltaY * -0.0015;
+                zoomLocal = Math.min(Math.max(1, zoomLocal), 3);
+                img.style.transform = `scale(${zoomLocal}) translateX(0px)`;
+                // while zoomed, stop sliding
+                if (zoomLocal !== 1) stopAutoplay(); else restartAutoplay();
+            });
+
+            // nav buttons
+            prevBtn.onclick = () => { prev(); restartAutoplay(); };
+            nextBtn.onclick = () => { next(); restartAutoplay(); };
+
+            // autoplay
+            function startAutoplay() {
+                stopAutoplay();
+                inlineAutoId = setInterval(() => { next(); }, 3500);
+            }
+            function stopAutoplay() { if (inlineAutoId) { clearInterval(inlineAutoId); inlineAutoId = null; } }
+            function restartAutoplay() { stopAutoplay(); startAutoplay(); }
+
+            // init
+            setImage(0);
+            startAutoplay();
+        }
+
+        // ===== TEXT =====
+        function renderText(data) {
+            const wrap = document.createElement('div');
+            wrap.className = 'slide-text';
+            const inner = document.createElement('div');
+            inner.className = 'content';
+            inner.innerHTML = data.text;
+            wrap.appendChild(inner);
+            viewer.appendChild(wrap);
+        }
+
+        // ===== MIX =====
+        function renderMix(data) {
+            const wrap = document.createElement('div');
+            wrap.className = 'mix-full';
+            wrap.style.backgroundImage = `url(${data.image})`;
+            const inner = document.createElement('div');
+            inner.className = 'content';
+            inner.innerHTML = data.text;
+            wrap.appendChild(inner);
+            viewer.appendChild(wrap);
+        }
+
+        // ===== FULLSCREEN SLIDESHOW =====
+        const fs = document.getElementById('fullscreen');
+        const fsImg = document.getElementById('fs-img');
+        const fsCaption = document.getElementById('fs-caption');
+        const fsPrev = document.getElementById('fs-prev');
+        const fsNext = document.getElementById('fs-next');
+        const fsClose = document.getElementById('fs-close');
+
+        let fsIndex = 0;
+        let fsImages = [];
+        let fsAutoId = null;
+
+        
+
+        function showFsImage() {
+            if (!fsImages.length) return;
+            fsImg.style.display = '';
+            fsImg.src = fsImages[fsIndex];
+            fsCaption.textContent = (fsIndex + 1) + ' / ' + fsImages.length;
+        }
+
+        function closeFs() {
+            fs.classList.remove('show');
+            fs.setAttribute('aria-hidden','true');
+            stopFsAutoplay();
+        }
+
+        function nextFs() {
+            if (!fsImages.length) return;
+            fsIndex = (fsIndex + 1) % fsImages.length;
+            showFsImage();
+        }
+        function prevFs() {
+            if (!fsImages.length) return;
+            fsIndex = (fsIndex - 1 + fsImages.length) % fsImages.length;
+            showFsImage();
+        }
+
+        fsNext.onclick = nextFs;
+        fsPrev.onclick = prevFs;
+        fsClose.onclick = closeFs;
+
+        fs.addEventListener('click', (e) => { if (e.target === fs) closeFs(); });
+
+        // keyboard
+        document.addEventListener('keydown', e => {
+            if (fs.classList.contains('show')) {
+                if (e.key === 'ArrowRight') nextFs();
+                if (e.key === 'ArrowLeft') prevFs();
+                if (e.key === 'Escape') closeFs();
+            }
+        });
+
+        // touch swipe
+        let fsStartX = 0;
+        fs.addEventListener('touchstart', e => fsStartX = e.touches[0].clientX);
+        fs.addEventListener('touchend', e => {
+            let endX = e.changedTouches[0].clientX;
+            if (endX < fsStartX - 40) nextFs();
+            if (endX > fsStartX + 40) prevFs();
+        });
+
+        function startFsAutoplay() {
+            stopFsAutoplay();
+            fsAutoId = setInterval(() => { nextFs(); }, 3500);
+        }
+        function stopFsAutoplay() { if (fsAutoId) { clearInterval(fsAutoId); fsAutoId = null; } }
+
+        
+        // ===== FLOATING FULLSCREEN BUTTON (BROWSER FULLSCREEN API) =====
+        const floatFsBtn = document.getElementById('float-fs-btn');
+        function updateFsBtn() {
+            const inFs = !!document.fullscreenElement;
+            floatFsBtn.textContent = inFs ? '⤡' : '⤢';
+            floatFsBtn.setAttribute('aria-pressed', inFs ? 'true' : 'false');
+            floatFsBtn.title = inFs ? 'Thoát toàn màn hình' : 'Toàn màn hình';
+        }
+        if (floatFsBtn) {
+            floatFsBtn.addEventListener('click', async () => {
+                try {
+                    if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+                    else await document.exitFullscreen();
+                } catch (err) { console.warn('Fullscreen error', err); }
+            });
+            document.addEventListener('fullscreenchange', updateFsBtn);
+            updateFsBtn();
+        }
+        </script>
+    </body>
+</html>
